@@ -35,14 +35,14 @@ if [ -f "$NGINX_CONF_FILE" ]; then
         exit 1
     fi
 
-    cd $PROJECT_DIR
+    cd "$PROJECT_DIR"
 
     echo -e "\n${CYAN}Шаг 1: Обновление кода из репозитория Git...${NC}"
     git pull
     echo -e "${GREEN}✔ Код успешно обновлен.${NC}"
 
     echo -e "\n${CYAN}Шаг 2: Пересборка и перезапуск Docker-контейнеров...${NC}"
-    sudo docker-compose down --remove-orphans && sudo docker-compose up -d --build
+    sudo docker compose down --remove-orphans && sudo docker compose up -d --build
     
     echo -e "\n\n${GREEN}==============================================${NC}"
     echo -e "${GREEN}      🎉 Обновление успешно завершено! 🎉      ${NC}"
@@ -56,10 +56,10 @@ echo -e "\n${YELLOW}Существующая конфигурация не на�
 
 echo -e "\n${CYAN}Шаг 1: Установка системных зависимостей...${NC}"
 install_package() {
-    if ! command -v $1 &> /dev/null; then
+    if ! command -v "$1" &> /dev/null; then
         echo -e "${YELLOW}Утилита '$1' не найдена. Устанавливаем...${NC}"
         sudo apt-get update
-        sudo apt-get install -y $2
+        sudo apt-get install -y "$2"
     else
         echo -e "${GREEN}✔ $1 уже установлен.${NC}"
     fi
@@ -67,25 +67,25 @@ install_package() {
 
 install_package "git" "git"
 install_package "docker" "docker.io"
-install_package "docker-compose" "docker-compose"
+install_package "docker compose" "docker-compose-plugin"
 install_package "nginx" "nginx"
 install_package "curl" "curl"
 install_package "certbot" "certbot python3-certbot-nginx"
 
 for service in docker nginx; do
-    if ! sudo systemctl is-active --quiet $service; then
+    if ! sudo systemctl is-active --quiet "$service"; then
         echo -e "${YELLOW}Сервис $service не запущен. Запускаем и добавляем в автозагрузку...${NC}"
-        sudo systemctl start $service
-        sudo systemctl enable $service
+        sudo systemctl start "$service"
+        sudo systemctl enable "$service"
     fi
 done
 echo -e "${GREEN}✔ Все системные зависимости установлены.${NC}"
 
 echo -e "\n${CYAN}Шаг 2: Клонирование репозитория...${NC}"
 if [ ! -d "$PROJECT_DIR" ]; then
-    git clone $REPO_URL
+    git clone "$REPO_URL"
 fi
-cd $PROJECT_DIR
+cd "$PROJECT_DIR"
 echo -e "${GREEN}✔ Репозиторий готов.${NC}"
 
 echo -e "\n${CYAN}Шаг 3: Настройка домена и получение SSL-сертификатов...${NC}"
@@ -103,7 +103,7 @@ read_input "Введите ваш email (для регистрации SSL-се�
 
 echo -e "${GREEN}✔ Домен для работы: ${DOMAIN}${NC}"
 SERVER_IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
-DOMAIN_IP=$(dig +short $DOMAIN @8.8.8.8 | tail -n1)
+DOMAIN_IP=$(dig +short "$DOMAIN" @8.8.8.8 | tail -n1)
 echo -e "${YELLOW}IP вашего сервера: $SERVER_IP${NC}"
 echo -e "${YELLOW}IP, на который указывает домен '$DOMAIN': $DOMAIN_IP${NC}"
 
@@ -125,7 +125,7 @@ if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
     echo -e "${GREEN}✔ SSL-сертификаты для домена $DOMAIN уже существуют.${NC}"
 else
     echo -e "${YELLOW}Получаем SSL-сертификаты для $DOMAIN...${NC}"
-    sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect
+    sudo certbot --nginx -d "$DOMAIN" --email "$EMAIL" --agree-tos --non-interactive --redirect
     echo -e "${GREEN}✔ SSL-сертификаты успешно получены.${NC}"
 fi
 
@@ -136,7 +136,7 @@ YOOKASSA_PORT=${YOOKASSA_PORT_INPUT:-443}
 NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
 
 echo -e "Создаем конфигурацию Nginx..."
-sudo rm -rf /etc/nginx/sites-enabled/default
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
     listen ${YOOKASSA_PORT} ssl http2;
@@ -159,7 +159,7 @@ server {
 EOF
 
 if [ ! -f "$NGINX_ENABLED_FILE" ]; then
-    sudo ln -s $NGINX_CONF_FILE $NGINX_ENABLED_FILE
+    sudo ln -sf "$NGINX_CONF_FILE" "$NGINX_ENABLED_FILE"
 fi
 
 echo -e "${GREEN}✔ Конфигурация Nginx создана.${NC}"
@@ -167,10 +167,10 @@ echo -e "${YELLOW}Проверяем и перезагружаем Nginx...${NC}
 sudo nginx -t && sudo systemctl reload nginx
 
 echo -e "\n${CYAN}Шаг 5: Сборка и запуск Docker-контейнера...${NC}"
-if [ "$(sudo docker-compose ps -q)" ]; then
-    sudo docker-compose down
+if [ "$(sudo docker compose ps -q 2>/dev/null)" ]; then
+    sudo docker compose down
 fi
-sudo docker-compose up -d --build
+sudo docker compose up -d --build
 
 echo -e "\n\n${GREEN}=====================================================${NC}"
 echo -e "${GREEN}      🎉 Установка и запуск успешно завершены! 🎉      ${NC}"
